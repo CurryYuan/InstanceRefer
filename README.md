@@ -16,7 +16,7 @@ If you find our work useful in your research, please consider citing:
   year={2021}
 }
 ```
-## New
+## News
 * 2021-02-22 We achieve 1st place in [ScanRefer](http://kaldir.vc.in.tum.de/scanrefer_benchmark/) leaderboard.
 ![](figures/benchmark.png)
 
