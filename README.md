@@ -71,7 +71,7 @@ InstanceRefer
 ### Training
 Train the InstanceRefer model. You can change hyper-parameters in `config/InstanceRefer.yaml`:
 ```shell
-python scripts/train.py 
+python scripts/train.py --log_dir instancerefer
 ```
 
 
