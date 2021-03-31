@@ -1,0 +1,69 @@
+GENERAL:
+  manual_seed: 123
+
+DATA:
+  dataset: ScanRefer
+  num_points: 40000
+  num_scenes: -1
+  num_classes: 20
+  use_augment: False
+
+  # input
+  use_height: True
+  use_color: True
+  use_normal: False
+  use_multiview: False
+
+MODEL:
+  model: instancerefer
+  use_gt_lang: True
+
+  # Attribute Module
+  attribute_module: attribute_module
+  normalize_inst: False
+  voxel_size_ap: 0.1
+  use_semantic: False
+  instance_augment: False
+
+  # Relation Module
+  relation_module: relation_module
+  k: 8
+
+  # Global Localization Module
+  scene_module: scene_module
+  use_seg: True
+  voxel_size_glp: 0.1
+
+  # Language Module
+  language_module: lang_module
+  embedding_size: 300
+  hidden_size: 128
+  word_output_dim: 256
+  num_layers: 2
+  word_dropout: 0.1
+  use_lang_cls: True
+  use_bidir: True # bi-directional GRU
+
+  # pretrain
+  use_checkpoint:
+  use_pretrained: False
+
+TRAIN:
+  batch_size: 128
+  num_workers: 16
+  epoch: 24
+
+  lr: 0.001
+  lr_decay_step: [10, 20]
+  lr_decay_rate: 0.1
+  bn_decay_step: 10
+  bn_decay_rate: 0.1
+  wd: 0.00001
+
+  verbose: 20
+  val_step: 2000
+  start_val: 5
+
+
+
+

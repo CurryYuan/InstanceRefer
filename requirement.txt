@@ -1,0 +1,11 @@
+h5py
+pandas
+easydict
+plyfile
+trimesh
+tensorboardX
+torch-scatter==1.4.0
+torch-sparse==0.4.3
+torch-cluster==1.4.5
+torch-spline-conv==1.1.1
+torch-geometric==1.3.2
