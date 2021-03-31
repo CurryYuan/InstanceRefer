@@ -21,7 +21,7 @@ MODEL:
   # Attribute Module
   attribute_module: attribute_module
   normalize_inst: False
-  voxel_size_ap: 0.1
+  voxel_size_ap: 0.02
   use_semantic: False
   instance_augment: False
 
