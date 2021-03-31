@@ -51,7 +51,7 @@ CONF.PATH.SCANNET_META = os.path.join(CONF.PATH.SCANNET, "meta_data")
 CONF.PATH.SCANNET_DATA = os.path.join(CONF.PATH.SCANNET, "pointgroup_data")
 
 # data
-CONF.SCANNET_DIR = "data/scannet/scans/scans/"  # TODO change this
+CONF.SCANNET_DIR = "data/scannet/scans/"  # TODO change this
 CONF.SCANNET_FRAMES_ROOT = "data/scanrefer/frames_square/"  # TODO change this
 CONF.PROJECTION = "data/multiview_projection_scanrefer"  # TODO change this
 CONF.ENET_FEATURES_ROOT = "data/scanrefer/enet_features/"  # TODO change this
