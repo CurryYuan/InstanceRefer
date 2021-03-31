@@ -18,7 +18,7 @@ If you find our work useful in your research, please consider citing:
 ```
 ## News
 * 2021-03-31 We release InstanceRefer v1 :rocket:!
-* 2021-02-22 We achieve 1st place in [ScanRefer](http://kaldir.vc.in.tum.de/scanrefer_benchmark/) leaderboard.
+* 2021-02-22 We achieve 1st place in [ScanRefer](http://kaldir.vc.in.tum.de/scanrefer_benchmark/) leaderboard :fire:. 
 ![](figures/benchmark.png)
 
 ## Getting Started
