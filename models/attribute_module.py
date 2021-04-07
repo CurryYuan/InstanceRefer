@@ -15,15 +15,15 @@ class AttributeModule(nn.Module):
         self.instance_augment = args.instance_augment
         self.input_feature_dim = input_feature_dim
 
+        v_dim = args.visual_dim
+        l_dim = args.languege_dim
+        h_dim = args.hidden_dim
+
         # Sparse Volumetric Backbone
-        self.net = SparseEncoder(self.input_feature_dim)
-        self.pooling = spnn.GlobalAveragePooling()
+        self.net = SparseEncoder(self.input_feature_dim, v_dim)
+        self.pooling = spnn.GlobalMaxPooling()
 
         self.voxel_size = np.array([args.voxel_size_ap, args.voxel_size_ap, args.voxel_size_ap])
-
-        v_dim = 128
-        h_dim = 128
-        l_dim = 256
 
         self.vis_emb_fc = nn.Sequential(nn.Linear(v_dim, h_dim),
                                         nn.LayerNorm(h_dim),
@@ -78,7 +78,7 @@ class AttributeModule(nn.Module):
             for j in range(num_obj):
                 if instance_class[j] == lang_cls_pred[i]:
                     point_cloud = instance_point[j]
-                    onhot_semantic = self.one_hot(20, lang_cls_pred[i])
+                    onhot_semantic = self.one_hot(self.args.num_classes, lang_cls_pred[i])
 
                     pc = point_cloud[:, :3]
 
@@ -144,7 +144,7 @@ class AttributeModule(nn.Module):
             lang_feats_flatten.append(lang_feat)
 
         lang_feats_flatten = torch.cat(lang_feats_flatten, dim=0)
-        feats = nn.functional.normalize(feats, p=2, dim=1)
+        # feats = nn.functional.normalize(feats, p=2, dim=1)
         scores = torch.sum(feats * lang_feats_flatten, dim=1)
 
         data_dict['obj_feats'] = feats

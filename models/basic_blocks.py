@@ -57,7 +57,7 @@ class ResidualBlock(nn.Module):
 
 
 class SparseEncoder(nn.Module):
-    def __init__(self, input_dim):
+    def __init__(self, input_dim, out):
         super().__init__()
 
         self.stem = nn.Sequential(
@@ -76,7 +76,7 @@ class SparseEncoder(nn.Module):
 
         self.stage3 = nn.Sequential(
             BasicConvolutionBlock(128, 128, ks=2, stride=2),
-            ResidualBlock(128, 128, 3),
+            ResidualBlock(128, out, 3),
         )
 
     def forward(self, x):

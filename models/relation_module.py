@@ -11,9 +11,9 @@ class RelationModule(nn.Module):
         self.args = args
         self.input_feature_dim = input_feature_dim
 
-        v_dim = 128
-        h_dim = 128
-        l_dim = 256
+        v_dim = args.visual_dim
+        l_dim = args.languege_dim
+        h_dim = args.hidden_dim
         dropout_rate = 0.4
 
         self.vis_emb_fc = nn.Sequential(nn.Linear(v_dim, h_dim),
@@ -30,7 +30,7 @@ class RelationModule(nn.Module):
                                          nn.Linear(h_dim, h_dim),
                                          )
 
-        self.gcn = DynamicEdgeConv(input_feature_dim + args.num_classes, h_dim, args=self.args)
+        self.gcn = DynamicEdgeConv(input_feature_dim + args.num_classes, v_dim, args=self.args)
         self.one_hot_array = np.eye(args.num_classes)
         self.weight_initialization()
 
@@ -107,7 +107,7 @@ class RelationModule(nn.Module):
         # GCN
         feats = self.gcn(support_xyz, batch_index, filtered_index, feats)
         feats = self.vis_emb_fc(feats)
-        feats = nn.functional.normalize(feats, p=2, dim=1)
+        # feats = nn.functional.normalize(feats, p=2, dim=1)
         scores = nn.functional.cosine_similarity(feats, lang_feats_flatten, dim=1)
 
         data_dict['relation_scores'] = scores

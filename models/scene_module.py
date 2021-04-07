@@ -20,9 +20,11 @@ class SceneModule(nn.Module):
             nn.ReLU(True),
         )
 
-        v_dim = 128
-        h_dim = 128
-        l_dim = 256
+
+        v_dim = args.visual_dim
+        l_dim = args.languege_dim
+        h_dim = args.hidden_dim
+
         self.h_dim = h_dim
         dropout_rate = 0.4
 
@@ -33,7 +35,7 @@ class SceneModule(nn.Module):
                                         nn.Conv2d(h_dim, h_dim, 3),
                                         )
 
-        self.vis_emb_fc1 = nn.Sequential(nn.Linear(128, h_dim),
+        self.vis_emb_fc1 = nn.Sequential(nn.Linear(h_dim, h_dim),
                                         nn.LayerNorm(h_dim),
                                         nn.ReLU(),
                                         nn.Dropout(dropout_rate),
@@ -108,7 +110,7 @@ class SceneModule(nn.Module):
 
         # matching
         obj_feats_flatten = self.vis_emb_fc1(obj_feats_flatten)
-        obj_feats_flatten = nn.functional.normalize(obj_feats_flatten, p=2, dim=1)
+        # obj_feats_flatten = nn.functional.normalize(obj_feats_flatten, p=2, dim=1)
         scores = nn.functional.cosine_similarity(obj_feats_flatten, scene_feats_flatten, dim=1)
         data_dict['scene_scores'] = scores
 
