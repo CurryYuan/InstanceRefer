@@ -14,7 +14,9 @@ class AttributeModule(nn.Module):
         self.use_semantic = args.use_semantic
         self.instance_augment = args.instance_augment
         self.input_feature_dim = input_feature_dim
-
+        if self.use_semantic:
+            self.input_feature_dim += 20
+            
         v_dim = args.visual_dim
         l_dim = args.languege_dim
         h_dim = args.hidden_dim
