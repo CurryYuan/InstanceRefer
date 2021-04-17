@@ -4,8 +4,8 @@ easydict
 plyfile
 trimesh
 tensorboardX
-torch-scatter==1.4.0
-torch-sparse==0.4.3
-torch-cluster==1.4.5
-torch-spline-conv==1.1.1
-torch-geometric==1.3.2
+torch-scatter -f https://pytorch-geometric.com/whl/torch-1.6.0+cu101.html
+torch-sparse -f https://pytorch-geometric.com/whl/torch-1.6.0+cu101.html
+torch-cluster -f https://pytorch-geometric.com/whl/torch-1.6.0+cu101.html
+torch-spline-conv -f https://pytorch-geometric.com/whl/torch-1.6.0+cu101.html
+torch-geometric -f https://pytorch-geometric.com/whl/torch-1.6.0+cu101.html

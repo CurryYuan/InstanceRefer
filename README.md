@@ -25,10 +25,10 @@ If you find our work useful in your research, please consider citing:
 
 
 ## Setup
-The code is tested on Ubuntu 16.04 LTS & 18.04 LTS with PyTorch 1.3.0 CUDA 10.1 installed. 
+The code is tested on Ubuntu 16.04 LTS & 18.04 LTS with PyTorch 1.6 CUDA 10.1 installed. 
 
 ```shell
-conda install pytorch==1.3.0 cudatoolkit=10.1 -c pytorch
+conda install pytorch==1.6.0 torchvision==0.7.0 cudatoolkit=10.1 -c pytorch
 ```
 
 Install the necessary packages listed out in `requirements.txt`:
@@ -37,8 +37,9 @@ pip install -r requirements.txt
 ```
 After all packages are properly installed, please run the following commands to compile the [torchsaprse](https://github.com/mit-han-lab/torchsparse):
 ```shell
-cd lib/torchsparse/
-python setup.py install
+conda install libboost
+conda install -c daleydeng gcc-5
+pip install --upgrade git+https://github.com/mit-han-lab/torchsparse.git
 ```
 __Before moving on to the next step, please don't forget to set the project root path to the `CONF.PATH.BASE` in `lib/config.py`.__
 
@@ -59,6 +60,9 @@ Finally, the dataset folder should be organized as follows.
 ```angular2
 InstanceRefer
 ├── data
+│   ├── glove.p
+│   ├── ScanRefer_filtered.json
+│   ├── ...
 │   ├── scannet
 │   │  ├── meta_data
 │   │  ├── pointgroup_data
