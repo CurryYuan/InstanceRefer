@@ -6,7 +6,7 @@ DATA:
   num_points: 40000
   num_scenes: -1
   num_classes: 20
-  use_augment: False
+  use_augment: True
 
   # input
   use_height: True
