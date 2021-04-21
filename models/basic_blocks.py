@@ -1,10 +1,10 @@
-import torch
 import math
+import torch
 import torch.nn as nn
 import torchsparse.nn as spnn
 
 from torchsparse import SparseTensor
-from torch_geometric.nn import MessagePassing, knn_graph, knn
+from torch_geometric.nn import MessagePassing, knn
 
 
 class BasicConvolutionBlock(nn.Module):
@@ -56,8 +56,8 @@ class ResidualBlock(nn.Module):
         return out
 
 
-class SparseEncoder(nn.Module):
-    def __init__(self, input_dim, out):
+class SparseConvEncoder(nn.Module):
+    def __init__(self, input_dim):
         super().__init__()
 
         self.stem = nn.Sequential(
@@ -76,16 +76,61 @@ class SparseEncoder(nn.Module):
 
         self.stage3 = nn.Sequential(
             BasicConvolutionBlock(128, 128, ks=2, stride=2),
-            ResidualBlock(128, out, 3),
+            ResidualBlock(128, 128, 3),
         )
+
+        self.stage4 = nn.Sequential(
+            BasicConvolutionBlock(128, 128, ks=2, stride=2),
+            ResidualBlock(128, 128, 3),
+        )
+
 
     def forward(self, x):
         x = self.stem(x)
         x = self.stage1(x)
         x = self.stage2(x)
         x = self.stage3(x)
+        x = self.stage4(x)
 
         return x
+
+
+class DynamicEdgeConv(MessagePassing):
+    def __init__(self, F_in, F_out, k=6, num_classes=18):
+        super(DynamicEdgeConv, self).__init__(aggr='max')
+        self.k = k
+        self.num_classes = num_classes
+        self.mlp = nn.Sequential(
+            nn.Linear(3 * F_in, F_out),
+            nn.ReLU(),
+            nn.Linear(F_out, F_out)
+        )
+        self.weight = nn.Sequential(
+            nn.Linear(3+num_classes+num_classes, 64),
+            nn.ReLU(),
+            nn.Linear(64, F_in)
+        )
+
+    def forward(self, support_xyz, batch_index, filtered_index, features):
+        # knn
+        query_xyz = torch.index_select(support_xyz, 0, filtered_index)
+        query_batch_index = torch.index_select(batch_index, 0, filtered_index)
+        query_features = torch.index_select(features, 0, filtered_index)
+
+        row, col = knn(support_xyz, query_xyz, self.k, batch_index, query_batch_index)
+        edge_index = torch.stack([col, row], dim=0)
+
+        # x has shape [N, F_in]
+        # edge_index has shape [2, E]
+        return self.propagate(edge_index, x=(features, query_features), pos=(support_xyz, query_xyz))  # shape [N, F_out]
+
+    def message(self, x_i, x_j, pos_i, pos_j):
+        # print(pos_j)
+        # x_i has shape [E, F_in]
+        # x_j has shape [E, F_in]
+        edge_weights = self.weight(torch.cat([pos_j - pos_i, x_i[:,-self.num_classes:], x_j[:,-self.num_classes:]],-1))
+        edge_features = torch.cat([x_i, edge_weights, x_j], dim=1)  # shape [E, 3 * F_in]
+        return self.mlp(edge_features)  # shape [E, F_out]
 
 
 class BEVEncoder(nn.Module):
@@ -121,88 +166,9 @@ class BEVEncoder(nn.Module):
         x = self.stage1(x)
         x = self.stage2(x)
         x = self.stage3(x)
+
         x = self.stage4(x)
-
         return x
-
-
-class DynamicEdgeConv(MessagePassing):
-    def __init__(self, F_in, F_out, args):
-        super(DynamicEdgeConv, self).__init__(aggr='max')
-        self.args = args
-        self.k = args.k
-        self.mlp = nn.Sequential(
-            nn.Linear(3 * F_in, F_out),
-            nn.ReLU(),
-            nn.Linear(F_out, F_out)
-        )
-        self.weight = nn.Sequential(
-            nn.Linear(3 + self.args.num_classes * 2, 64),
-            nn.ReLU(),
-            nn.Linear(64, F_in)
-        )
-
-    def forward(self, support_xyz, batch_index, filtered_index, features):
-        # knn
-        query_xyz = torch.index_select(support_xyz, 0, filtered_index)
-        query_batch_index = torch.index_select(batch_index, 0, filtered_index)
-        query_features = torch.index_select(features, 0, filtered_index)
-
-        row, col = knn(support_xyz, query_xyz, self.k, batch_index, query_batch_index)
-        edge_index = torch.stack([col, row], dim=0)
-
-        # x has shape [N, F_in]
-        # edge_index has shape [2, E]
-        return self.propagate(edge_index, x=(features, query_features),
-                              pos=(support_xyz, query_xyz))  # shape [N, F_out]
-
-    def message(self, x_i, x_j, pos_i, pos_j):
-        # x_i has shape [E, F_in]
-        # x_j has shape [E, F_in]
-        edge_weights = self.weight(
-            torch.cat([pos_j - pos_i, x_i[:, -self.args.num_classes:], x_j[:, -self.args.num_classes:]], -1))
-        edge_features = torch.cat([x_i, edge_weights, x_j], dim=1)  # shape [E, 3 * F_in]
-
-        return self.mlp(edge_features)  # shape [E, F_out]
-
-
-def masked_softmax(vector: torch.Tensor,
-                   mask: torch.Tensor,
-                   dim: int = -1,
-                   memory_efficient: bool = False,
-                   mask_fill_value: float = -1e32) -> torch.Tensor:
-    """
-    ``torch.nn.functional.softmax(vector)`` does not work if some elements of ``vector`` should be
-    masked.  This performs a softmax on just the non-masked portions of ``vector``.  Passing
-    ``None`` in for the mask is also acceptable; you'll just get a regular softmax.
-    ``vector`` can have an arbitrary number of dimensions; the only requirement is that ``mask`` is
-    broadcastable to ``vector's`` shape.  If ``mask`` has fewer dimensions than ``vector``, we will
-    unsqueeze on dimension 1 until they match.  If you need a different unsqueezing of your mask,
-    do it yourself before passing the mask into this function.
-    If ``memory_efficient`` is set to true, we will simply use a very large negative number for those
-    masked positions so that the probabilities of those positions would be approximately 0.
-    This is not accurate in math, but works for most cases and consumes less memory.
-    In the case that the input vector is completely masked and ``memory_efficient`` is false, this function
-    returns an array of ``0.0``. This behavior may cause ``NaN`` if this is used as the last layer of
-    a model that uses categorical cross-entropy loss. Instead, if ``memory_efficient`` is true, this function
-    will treat every element as equal, and do softmax over equal numbers.
-    """
-    if mask is None:
-        result = torch.nn.functional.softmax(vector, dim=dim)
-    else:
-        mask = mask.bool()
-        while mask.dim() < vector.dim():
-            mask = mask.unsqueeze(1)
-        if not memory_efficient:
-            # To limit numerical errors from large vector elements outside the mask, we zero these out.
-            result = torch.nn.functional.softmax(vector * mask, dim=dim)
-            result = result * mask
-            result = result / (result.sum(dim=dim, keepdim=True) + 1e-13)
-        else:
-            masked_vector = vector.masked_fill(mask.logical_not(), mask_fill_value)
-            result = torch.nn.functional.softmax(masked_vector, dim=dim)
-
-    return result
 
 
 def spcrop(inputs, loc_min, loc_max):
@@ -274,43 +240,72 @@ class ToDenseBEVConvolution(nn.Module):
             sparse_features,
             torch.Size([batch_size * int(self.bev_shape.prod()), sparse_features.size(-1)]),
         ).to_dense()
-
         return bev.view(batch_size, *self.bev_shape, -1).permute(0, 3, 1, 2).contiguous()  # To BCHW
 
 
-class PositionalEncoding(nn.Module):
-    """Implement the PE function."""
+def tensor2points(tensor, offset=(-80., -80., -5.), voxel_size=(.05, .05, .1)):
+    indices = tensor.float()
+    voxel_size = torch.Tensor(voxel_size).to(indices.device)
+    indices[:, :3] = indices[:, :3] * voxel_size + offset + .5 * voxel_size
+    return indices
 
-    def __init__(self, d_model, dropout, max_len=5000):
-        super(PositionalEncoding, self).__init__()
-        self.dropout = nn.Dropout(p=dropout)
+# from lib.pointnet2.pointnet2_modules import PointnetSAModule
 
-        # Compute the positional encodings once in log space.
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len).unsqueeze(1)
-        div_term = torch.exp(
-            torch.arange(0, d_model, 2) * -(math.log(10000.0) / d_model)
-        )
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(1)  # (max_len, 1, C)
-        self.register_buffer("pe", pe)
-
-    def forward(self, x):
-        x = torch.autograd.Variable(self.pe[: x.size(0)], requires_grad=False)
-        return self.dropout(x)
-
-
-def length_to_mask(length, max_len=None, dtype=None):
-    """length: B.
-    return B x max_len.
-    If max_len is None, then max of length will be used.
-    """
-    assert len(length.shape) == 1, "Length shape should be 1 dimensional."
-    max_len = max_len or length.max().item()
-    mask = torch.arange(max_len, device=length.device, dtype=length.dtype).expand(
-        len(length), max_len
-    ) < length.unsqueeze(1)
-    if dtype is not None:
-        mask = torch.as_tensor(mask, dtype=dtype, device=length.device)
-    return mask
+# def break_up_pc(pc: torch.Tensor) -> [torch.Tensor, torch.Tensor]:
+#     """
+#     Split the pointcloud into xyz positions and features tensors.
+#     This method is taken from VoteNet codebase (https://github.com/facebookresearch/votenet)
+#
+#     @param pc: pointcloud [N, 3 + C]
+#     :return: the xyz tensor and the feature tensor
+#     """
+#     xyz = pc[..., 0:3].contiguous()
+#     features = (
+#         pc[..., 3:].transpose(1, 2).contiguous()
+#         if pc.size(-1) > 3 else None
+#     )
+#     return xyz, features
+#
+#
+# class PointNetPP(nn.Module):
+#     """
+#     Pointnet++ encoder.
+#     For the hyper parameters please advise the paper (https://arxiv.org/abs/1706.02413)
+#     """
+#
+#     def __init__(self, sa_n_points: list,
+#                  sa_n_samples: list,
+#                  sa_radii: list,
+#                  sa_mlps: list,
+#                  bn=True,
+#                  use_xyz=True):
+#         super().__init__()
+#
+#         n_sa = len(sa_n_points)
+#         if not (n_sa == len(sa_n_samples) == len(sa_radii) == len(sa_mlps)):
+#             raise ValueError('Lens of given hyper-params are not compatible')
+#
+#         self.encoder = nn.ModuleList()
+#
+#         for i in range(n_sa):
+#             self.encoder.append(PointnetSAModule(
+#                 npoint=sa_n_points[i],
+#                 nsample=sa_n_samples[i],
+#                 radius=sa_radii[i],
+#                 mlp=sa_mlps[i],
+#                 bn=bn,
+#                 use_xyz=use_xyz,
+#             ))
+#
+#         out_n_points = sa_n_points[-1] if sa_n_points[-1] is not None else 1
+#         self.fc = nn.Linear(out_n_points * sa_mlps[-1][-1], sa_mlps[-1][-1])
+#
+#     def forward(self, features):
+#         """
+#         @param features: B x N_objects x N_Points x 3 + C
+#         """
+#         xyz, features = break_up_pc(features)
+#         for i in range(len(self.encoder)):
+#             xyz, features = self.encoder[i](xyz, features)
+#
+#         return self.fc(features.view(features.size(0), -1))

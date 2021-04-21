@@ -1,7 +1,3 @@
-'''
-File Created: Monday, 25th November 2019 1:35:30 pm
-Author: Dave Zhenyu Chen (zhenyu.chen@tum.de)
-'''
 import os
 import sys
 import time
@@ -20,8 +16,9 @@ importlib.reload(lib)
 from lib.config import CONF
 from lib.loss_helper import get_loss
 from lib.eval_helper import get_eval
-from eta import decode_eta
-from utils.util import BNMomentumScheduler
+from lib.scheduler_helper import BNMomentumScheduler
+
+from utils.eta import decode_eta
 
 ITER_REPORT_TEMPLATE = """
 -------------------------------iter: [{epoch_id}: {iter_id}/{total_iter}]-------------------------------
@@ -64,10 +61,9 @@ BEST_REPORT_TEMPLATE = """
 
 
 class Solver():
-    def __init__(self, model, config, dataloader, optimizer, stamp, val_step=10, reference=True,
-                 lr_decay_step=None, lr_decay_rate=None, bn_decay_step=None, bn_decay_rate=None, args=None):
+    def __init__(self, model, config, dataloader, optimizer, stamp, val_step=10,
+                 lr_decay_step=None, lr_decay_rate=None, bn_decay_step=None, bn_decay_rate=None):
 
-        self.args = args
         self.epoch = 0  # set in __call__
         self.verbose = 0  # set in __call__
 
@@ -77,8 +73,6 @@ class Solver():
         self.optimizer = optimizer
         self.stamp = stamp
         self.val_step = val_step
-
-        self.reference = reference
 
         self.lr_decay_step = lr_decay_step
         self.lr_decay_rate = lr_decay_rate
@@ -133,6 +127,7 @@ class Solver():
 
         # bn scheduler
         if bn_decay_step and bn_decay_rate:
+            it = -1
             start_epoch = 0
             BN_MOMENTUM_INIT = 0.5
             BN_MOMENTUM_MAX = 0.001
@@ -150,7 +145,7 @@ class Solver():
 
         for epoch_id in range(epoch):
             try:
-                self._log("Epoch {} starting...".format(epoch_id + 1))
+                self._log("epoch {} starting...".format(epoch_id + 1))
 
                 # feed
                 self._feed(self.dataloader["train"], "train", epoch_id)
@@ -162,15 +157,13 @@ class Solver():
 
                 print("evaluating...")
                 self.init_log()
-
                 # val
-                if epoch_id >= self.args.start_val:
-                    self._feed(self.dataloader["val"], "val", epoch_id)
+                self._feed(self.dataloader["val"], "val", epoch_id)
 
                 # update lr scheduler
                 if self.lr_scheduler:
                     self.lr_scheduler.step()
-                    self._log("update learning rate --> {}\n".format(self.lr_scheduler.get_lr()))
+                    self._log("update learning rate --> {}\n".format(self.lr_scheduler.get_last_lr()))
 
                 # update bn scheduler
                 if self.bn_scheduler:
@@ -215,7 +208,6 @@ class Solver():
         data_dict = get_loss(
             data_dict=data_dict,
             config=self.config,
-            args=self.args
         )
 
         # dump
@@ -224,11 +216,10 @@ class Solver():
         self._running_log["seg_loss"] = data_dict["seg_loss"]
         self._running_log["loss"] = data_dict["loss"]
 
-    def _eval(self, data_dict, idx, phase):
+    def _eval(self, data_dict):
         data_dict = get_eval(
             data_dict=data_dict,
             config=self.config,
-            args=self.args
         )
 
         # dump
@@ -245,11 +236,12 @@ class Solver():
         dataloader = dataloader if phase == "train" else tqdm(dataloader)
         fetch_time_start = time.time()
 
-        for idx, data_dict in enumerate(dataloader):
+        for data_dict in dataloader:
+
             # move to cuda
             for key in data_dict:
-                if key in ['lang_feat', 'lang_len', 'object_cat', 'pt', 'point_min', 'point_max', 'mlm_label',
-                           'ref_center_label', 'ref_size_residual_label', 'attr_cls_gt']:
+                if key in ['lang_feat', 'lang_len', 'object_cat', 'lidar', 'point_min', 'point_max', 'mlm_label',
+                           'ref_center_label', 'ref_size_residual_label']:
                     data_dict[key] = data_dict[key].cuda()
 
             # initialize the running loss
@@ -286,7 +278,7 @@ class Solver():
 
             # eval
             start = time.time()
-            self._eval(data_dict, idx, phase)
+            self._eval(data_dict)
             self.log[phase]["eval"].append(time.time() - start)
 
             # record log
@@ -320,12 +312,6 @@ class Solver():
                 self._global_iter_id += 1
             fetch_time_start = time.time()
 
-            if self.args.debug and idx > 2 and phase == "train":
-                break
-
-            if self.args.debug and idx > 10 and phase != "train":
-                break
-
         # check best
         if phase == "val":
             ious = self.log[phase]['ref_iou']
@@ -338,7 +324,7 @@ class Solver():
             cur_criterion = "iou_rate_0.25"
             cur_best = self.log[phase][cur_criterion]
             if cur_best > self.best[cur_criterion]:
-                self._log("best {} achieved: {:.4f}".format(cur_criterion, cur_best))
+                self._log("best {} achieved: {}".format(cur_criterion, cur_best))
                 self.best["epoch"] = epoch_id + 1
                 self.best["loss"] = np.mean(self.log[phase]["loss"])
                 self.best["ref_loss"] = np.mean(self.log[phase]["ref_loss"])
@@ -354,8 +340,6 @@ class Solver():
                 self._log("saving best models...\n")
                 model_root = os.path.join(CONF.PATH.OUTPUT, self.stamp)
                 torch.save(self.model.state_dict(), os.path.join(model_root, "model.pth"))
-
-
 
     def _dump_log(self, phase):
         log = {

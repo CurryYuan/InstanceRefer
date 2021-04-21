@@ -1,20 +1,14 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
-
-import torch
-import torch.nn as nn
-import numpy as np
-import sys
 import os
+import sys
+import torch
+import numpy as np
 
 sys.path.append(os.path.join(os.getcwd(), "lib"))  # HACK add the lib folder
 from utils.box_util import get_3d_box, box3d_iou
 from utils.util import construct_bbox_corners
 
 
-def get_eval(data_dict, config, args):
+def get_eval(data_dict, config):
     """ Loss functions
     Args:
         data_dict: dict
@@ -29,18 +23,11 @@ def get_eval(data_dict, config, args):
     lang_cls_pred = torch.argmax(lang_scores, dim=1)
     batch_size = lang_scores.shape[0]
 
-    # lang
-    if args.use_lang_cls:
-        data_dict["lang_acc"] = (lang_cls_pred == data_dict["object_cat"]).float().mean()
-    else:
-        data_dict["lang_acc"] = torch.zeros(1)[0].cuda()
+    data_dict["lang_acc"] = (lang_cls_pred == data_dict["object_cat"]).float().mean()
 
-    if args.attribute_module:
-        attribute_scores = data_dict['attribute_scores']
-
-    if args.relation_module:
-        relation_scores = data_dict['relation_scores']
-
+    attribute_scores = data_dict['attribute_scores']
+    relation_scores = data_dict['relation_scores']
+    scene_scores = data_dict['scene_scores']
 
     pred_obb_batch = data_dict['pred_obb_batch']
     cluster_labels = data_dict['cluster_label']
@@ -62,44 +49,27 @@ def get_eval(data_dict, config, args):
     others = []
     start_idx = 0
     num_missed = 0
-
     for i in range(batch_size):
         pred_obb = pred_obb_batch[i]  # (num, 7)
         num_filtered_obj = pred_obb.shape[0]
         if num_filtered_obj == 0:
             pred_obb = np.zeros(7)
             num_missed += 1
-            # pred_obb = scene_pred_obb[i]
         elif num_filtered_obj == 1:
             pred_obb = pred_obb[0]
         else:
-            if args.attribute_module:
-                attribute_score = attribute_scores[start_idx:start_idx + num_filtered_obj]
-            else:
-                attribute_score = 0
-
-            if args.relation_module:
-                relation_score = relation_scores[start_idx:start_idx + num_filtered_obj]
-            else:
-                relation_score = 0
-
-            if args.scene_module:
-                scene_scores = data_dict['scene_scores']
-                scene_score = scene_scores[start_idx:start_idx + num_filtered_obj]
-                score = attribute_score + relation_score + scene_score
-            else:
-                score = attribute_score + relation_score
+            attribute_score = attribute_scores[start_idx:start_idx + num_filtered_obj]
+            relation_score = relation_scores[start_idx:start_idx + num_filtered_obj]
+            scene_score = scene_scores[start_idx:start_idx + num_filtered_obj]
+            score = attribute_score + relation_score + scene_score
 
             start_idx += num_filtered_obj
-
             cluster_pred = torch.argmax(score, dim=0)
             target = torch.argmax(cluster_labels[i], dim=0)
-
             if target == cluster_pred:
                 ref_acc.append(1.)
             else:
                 ref_acc.append(0.)
-
 
             pred_obb = pred_obb_batch[i][cluster_pred]
 
@@ -140,7 +110,5 @@ def get_eval(data_dict, config, args):
     data_dict["ref_others_mask"] = others
     data_dict["pred_bboxes"] = pred_bboxes
     data_dict["gt_bboxes"] = gt_bboxes
-
-    torch.cuda.empty_cache()
 
     return data_dict

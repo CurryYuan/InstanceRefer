@@ -57,12 +57,14 @@ def get_dataloader(args, scanrefer, all_scene_list, split, shuffle):
         args=CONF
     )
 
-    dataloader = DataLoader(dataset,
-                            batch_size=args.batch_size,
-                            shuffle=shuffle,
-                            num_workers=args.num_workers,
-                            pin_memory=True,
-                            collate_fn=dataset.collate_fn)
+    dataloader = DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=shuffle,
+        num_workers=args.num_workers,
+        pin_memory=True,
+        collate_fn=dataset.collate_fn
+    )
 
     return dataset, dataloader
 
@@ -130,8 +132,8 @@ def get_solver(args, dataloader):
         lr_decay_rate=args.lr_decay_rate,
         bn_decay_step=args.bn_decay_step,
         bn_decay_rate=args.bn_decay_rate,
-        args=args
     )
+
     num_params = get_num_params(model)
     print('model params', num_params)
 
@@ -216,7 +218,7 @@ if __name__ == "__main__":
 
     if CONF.debug:
         os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-
+    print('Use GPU:', torch.cuda.is_available())
     init()
     train(CONF)
 

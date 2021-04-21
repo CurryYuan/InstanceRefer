@@ -1,18 +1,12 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
+import os
+import sys
 
 import torch
 import torch.nn as nn
 import numpy as np
-import sys
-import os
 
 sys.path.append(os.path.join(os.getcwd(), "lib"))  # HACK add the lib folder
-from lib.loss import ContrastiveLoss
 from utils.box_util import get_3d_box_batch, box3d_iou_batch
-import torch.nn.functional as F
 
 FAR_THRESHOLD = 0.6
 NEAR_THRESHOLD = 0.3
@@ -20,25 +14,122 @@ GT_VOTE_FACTOR = 3  # number of GT votes per point
 OBJECTNESS_CLS_WEIGHTS = [0.2, 0.8]  # put larger weights on positive objectness
 
 
-def show_point_clouds(pts, color, out):
-    fout = open(out, 'w')
-    for i in range(pts.shape[0]):
-        fout.write('v %f %f %f %d %d %d\n' % (
-            pts[i, 0], pts[i, 1], pts[i, 2], 255*color[i], 0, 0))
-    fout.close()
+class SoftmaxRankingLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
 
-def show_point_clouds1(pts, out):
-    fout = open(out, 'w')
-    for i in range(pts.shape[0]):
-        fout.write('v %f %f %f %d %d %d\n' % (
-            pts[i, 0], pts[i, 1], pts[i, 2], 255, 0, 0))
-    fout.close()
+    def forward(self, inputs, targets):
+        # input check
+        assert inputs.shape == targets.shape
+
+        # compute the probabilities
+        probs = F.softmax(inputs + 1e-8, dim=0)
+        # reduction
+        loss = -torch.sum(torch.log(probs + 1e-8) * targets, dim=0).mean()
+
+        return loss
+
+
+class RankingLoss(nn.Module):
+    def __init__(self, reduction='mean'):
+        super(RankingLoss, self).__init__()
+        self.m = 0.2
+        self.gamma = 64
+        self.reduction = reduction
+        self.soft_plus = nn.Softplus()
+
+    def forward(self, sim, label):
+        loss_v = 0
+        loss_l = 0
+        loss_loc = 0
+        batch_size = label.shape[0]
+        delta_p = 1 - self.m
+        delta_n = self.m
+
+        for i in range(batch_size):
+            temp_label = label[i]
+            index = temp_label > 0.5
+            index = index.nonzero().squeeze(1)
+            if index.shape[0] > 0:
+                pos_sim = torch.index_select(sim[i], 0, index)
+                alpha_p = torch.clamp(0.8 - pos_sim.detach(), min=0)
+                logit_p = - alpha_p * (pos_sim - delta_p) * self.gamma
+            else:
+                logit_p = torch.zeros(1)[0].cuda()
+
+            index = (temp_label < 0.25)
+            index = (index).nonzero().squeeze(1)
+
+            neg_v_sim = torch.index_select(sim[i], 0, index)
+            if neg_v_sim.shape[0] > 20:
+                index = neg_v_sim.topk(10, largest=True)[1]
+                neg_v_sim = torch.index_select(neg_v_sim, 0, index)
+
+            alpha_n = torch.clamp(neg_v_sim.detach() - 0.2, min=0)
+            logit_n = alpha_n * (neg_v_sim - delta_n) * self.gamma
+
+            loss_loc += self.soft_plus(torch.logsumexp(logit_n, dim=0) + torch.logsumexp(logit_p, dim=0))
+
+        if self.reduction == 'mean':
+            loss = (loss_l + loss_v + loss_loc) / batch_size
+        return loss
+
+
+class SimCLRLoss(nn.Module):
+    def __init__(self, reduction='mean'):
+        super(SimCLRLoss, self).__init__()
+        self.m = 0.2
+        self.gamma = 64
+        self.reduction = reduction
+        self.soft_plus = nn.Softplus()
+
+    def forward(self, sim, label):
+        sim = torch.exp(7 * sim)
+        loss = - torch.log((sim * label).sum() / (sim.sum() - (sim * label).sum() + 1e-8))
+
+        return loss
+
+
+class ContrastiveLoss(nn.Module):
+    def __init__(self, margin=0.2, gamma=5, reduction='mean'):
+        super(ContrastiveLoss, self).__init__()
+        self.margin = margin
+        self.gamma = gamma
+        self.reduction = reduction
+        self.soft_plus = nn.Softplus()
+
+    def forward(self, score, label):
+        score *= self.gamma
+        sim = (score*label).sum()
+        neg_sim = score*label.logical_not()
+        neg_sim = torch.logsumexp(neg_sim, dim=0) # soft max
+        loss = torch.clamp(neg_sim - sim + self.margin, min=0).sum()
+        return loss
+
+
+class SegLoss(nn.Module):
+    def __init__(self, alpha=0.25, gamma=2, weight=None, ignore_index=255):
+        super(SegLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.weight = weight
+        self.ignore_index = ignore_index
+        self.bce_fn = nn.BCEWithLogitsLoss(weight=self.weight)
+
+    def forward(self, preds, labels):
+        if self.ignore_index is not None:
+            mask = labels != self.ignore_index
+            labels = labels[mask]
+            preds = preds[mask]
+
+        logpt = -self.bce_fn(preds, labels)
+        pt = torch.exp(logpt)
+        loss = -((1 - pt)**self.gamma) * self.alpha * logpt
+        return loss
 
 
 def compute_scene_mask_loss(data_dict):
     pred = data_dict['seg_scores']
-    # base_xyz = data_dict['base_xyz']
-    # padding_mask = data_dict['padding_mask']
     ref_center_label = data_dict["ref_center_label"].cuda()
 
     point_min = data_dict['point_min']
@@ -102,7 +193,7 @@ def compute_lang_classification_loss(data_dict):
     return loss
 
 
-def get_loss(data_dict, config, args):
+def get_loss(data_dict, config):
     """ Loss functions
     Args:
         data_dict: dict
@@ -114,9 +205,7 @@ def get_loss(data_dict, config, args):
     """
     lang_loss = compute_lang_classification_loss(data_dict)
     data_dict["lang_loss"] = lang_loss
-
-    if args.scene_module and args.use_seg:
-        seg_loss, seg_acc = compute_scene_mask_loss(data_dict)
+    seg_loss, seg_acc = compute_scene_mask_loss(data_dict)
 
     # get ref gt
     ref_center_label = data_dict["ref_center_label"].detach().cpu().numpy()
@@ -129,14 +218,9 @@ def get_loss(data_dict, config, args):
                                         ref_size_class_label, ref_size_residual_label)
     ref_gt_bbox = get_3d_box_batch(ref_gt_obb[:, 3:6], ref_gt_obb[:, 6], ref_gt_obb[:, 0:3])
 
-    if args.attribute_module:
-        attribute_scores = data_dict['attribute_scores']
-
-    if args.relation_module:
-        relation_scores = data_dict['relation_scores']
-
-    if args.scene_module:
-        scene_scores = data_dict['scene_scores']
+    attribute_scores = data_dict['attribute_scores']
+    relation_scores = data_dict['relation_scores']
+    scene_scores = data_dict['scene_scores']
 
     pred_obb_batch = data_dict['pred_obb_batch']
     batch_size = len(pred_obb_batch)
@@ -145,7 +229,6 @@ def get_loss(data_dict, config, args):
 
     criterion = ContrastiveLoss(margin=0.2, gamma=5)
     ref_loss = torch.zeros(1).cuda().requires_grad_(True)
-
     start_idx = 0
     for i in range(batch_size):
         pred_obb = pred_obb_batch[i]  # (num, 7)
@@ -162,49 +245,25 @@ def get_loss(data_dict, config, args):
 
         label = torch.FloatTensor(label).cuda()
         cluster_label.append(label)
+        if num_filtered_obj == 1: continue
 
-        if num_filtered_obj == 1:
-            continue
-
-        if args.attribute_module:
-            attribute_score = attribute_scores[start_idx:start_idx + num_filtered_obj]
-        else:
-            attribute_score = 0
-
-        if args.relation_module:
-            relation_score = relation_scores[start_idx:start_idx + num_filtered_obj]
-        else:
-            relation_score = 0
-
-        if args.scene_module:
-            scene_score = scene_scores[start_idx:start_idx + num_filtered_obj]
-        else:
-            scene_score = 0
-
+        attribute_score = attribute_scores[start_idx:start_idx + num_filtered_obj]
+        relation_score = relation_scores[start_idx:start_idx + num_filtered_obj]
+        scene_score = scene_scores[start_idx:start_idx + num_filtered_obj]
         score = attribute_score + relation_score + scene_score
-        start_idx += num_filtered_obj
 
-        if ious.max() < 0.2:
-            continue
+        start_idx += num_filtered_obj
+        if ious.max() < 0.2: continue
 
         ref_loss = ref_loss + criterion(score, label)
 
     ref_loss = ref_loss / batch_size
     data_dict['ref_loss'] = ref_loss
 
-    # center_loss, size_loss = compute_box_loss(data_dict, box_mask)
-
-    if args.scene_module and args.use_seg:
-        data_dict['loss'] = 10 * ref_loss + lang_loss + seg_loss
-        data_dict["seg_loss"] = seg_loss
-        data_dict['seg_acc'] = seg_acc
-        data_dict['seg_loss'] = seg_loss
-    else:
-        data_dict['loss'] = ref_loss + lang_loss
-        data_dict["seg_loss"] = torch.zeros(1)[0].cuda()
-        data_dict['seg_acc'] = torch.zeros(1)[0].cuda()
-        data_dict['seg_loss'] = torch.zeros(1)[0].cuda()
-
+    data_dict['loss'] = 10 * ref_loss + lang_loss + seg_loss
+    data_dict["seg_loss"] = seg_loss
+    data_dict['seg_acc'] = seg_acc
+    data_dict['seg_loss'] = seg_loss
     data_dict['cluster_label'] = cluster_label
 
     return data_dict

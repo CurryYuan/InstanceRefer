@@ -1,38 +1,51 @@
+import torch
+import torch.nn as nn
+
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-from models.basic_blocks import *
+
 
 class LangModule(nn.Module):
-    def __init__(self, args):
+    def __init__(
+            self,
+            num_text_classes,
+            use_lang_classifier=True,
+            use_bidir=False,
+            emb_size=300,
+            hidden_size=256
+    ):
         super().__init__()
 
-        self.num_text_classes = args.num_classes
-        self.use_lang_classifier = args.use_lang_cls
-        self.use_bidir = args.use_bidir
-
-        self.word_projection = nn.Sequential(nn.Linear(args.embedding_size, args.word_output_dim),
-                                             nn.ReLU(),
-                                             nn.Dropout(args.word_dropout),
-                                             nn.Linear(args.word_output_dim, args.word_output_dim),
-                                             nn.ReLU())
+        self.num_text_classes = num_text_classes
+        self.use_lang_classifier = use_lang_classifier
+        self.use_bidir = use_bidir
 
         self.gru = nn.GRU(
-            input_size=args.word_output_dim,
-            hidden_size=args.hidden_size,
-            num_layers=args.num_layers,
+            input_size=256,
+            hidden_size=hidden_size,
+            num_layers=2,
             batch_first=True,
             bidirectional=self.use_bidir,
         )
 
-        hidden_size = args.hidden_size if not self.use_bidir else args.hidden_size * 2
-        self.fc_attribute = nn.Linear(hidden_size, 1)
-        self.fc_cls = nn.Linear(hidden_size, 1)
-        self.fc_relation = nn.Linear(hidden_size, 1)
-        self.fc_scene = nn.Linear(hidden_size, 1)
+        h_dim = 256
+        word_dropout = 0.1
+
+        self.word_projection = nn.Sequential(nn.Linear(emb_size, h_dim),
+                                             nn.ReLU(),
+                                             nn.Dropout(word_dropout),
+                                             nn.Linear(h_dim, h_dim),
+                                             nn.ReLU())
+
+        o_dim = 128 * (1 + self.use_bidir)
+        self.fc_a = nn.Linear(o_dim, 1)
+        self.fc_cls = nn.Linear(o_dim, 1)
+        self.fc_rel = nn.Linear(o_dim, 1)
+        self.fc_scene = nn.Linear(o_dim, 1)
 
         # language classifier
-        if args.use_lang_cls:
+        if use_lang_classifier:
             self.lang_cls = nn.Sequential(
-                nn.Linear(args.word_output_dim, args.num_classes),
+                nn.Linear(256, num_text_classes),
             )
 
     def rnn_encoding(self, embed, length, data_dict):
@@ -44,9 +57,8 @@ class LangModule(nn.Module):
         feats, _ = pad_packed_sequence(feats, batch_first=True)
         data_dict['lang_feat'] = feats
 
-        mask = length_to_mask(length, max_len=feats.shape[1])
-
-        atten_a = self.fc_relation(feats).squeeze(2)
+        mask = self.length_to_mask(length.to('cpu'), max_len=feats.shape[1]).cuda()
+        atten_a = self.fc_a(feats).squeeze(2)
         atten_a = torch.softmax(atten_a, dim=1)  # (B, N)
         atten_a = atten_a * mask
         atten_a = atten_a / atten_a.sum(1, keepdim=True)
@@ -58,7 +70,7 @@ class LangModule(nn.Module):
         atten_cls = atten_cls / atten_cls.sum(1, keepdim=True)
         embed_cls = torch.bmm(atten_cls.unsqueeze(1), embed[:, :atten_cls.shape[1]]).squeeze(1)
 
-        atten_rel = self.fc_relation(feats).squeeze(2)
+        atten_rel = self.fc_rel(feats).squeeze(2)
         atten_rel = torch.softmax(atten_rel, dim=1)  # (B, N)
         atten_rel = atten_rel * mask
         atten_rel = atten_rel / atten_rel.sum(1, keepdim=True)
@@ -111,3 +123,17 @@ class LangModule(nn.Module):
         if len(pharse) > 0:
             pharse = torch.cat(pharse, dim=0)  # (n_pharse, dim)
         return pharse
+
+    def length_to_mask(self, length, max_len=None, dtype=None):
+        """length: B.
+        return B x max_len.
+        If max_len is None, then max of length will be used.
+        """
+        assert len(length.shape) == 1, "Length shape should be 1 dimensional."
+        max_len = max_len or length.max().item()
+        mask = torch.arange(max_len, device=length.device, dtype=length.dtype).expand(
+            len(length), max_len
+        ) < length.unsqueeze(1)
+        if dtype is not None:
+            mask = torch.as_tensor(mask, dtype=dtype, device=length.device)
+        return mask

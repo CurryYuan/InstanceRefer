@@ -1,13 +1,22 @@
-from models.basic_blocks import *
+import math
+import torch
+import torch.nn as nn
+import numpy as np
+import torchsparse.nn as spnn
+
+from models.basic_blocks import BEVEncoder, SparseCrop, ToDenseBEVConvolution
 
 class SceneModule(nn.Module):
-    def __init__(self, input_feature_dim, args):
+    def __init__(self, input_feature_dim, args, v_dim=128, h_dim=128, l_dim=256, dropout_rate=0.15):
         super().__init__()
+
         self.args = args
         self.input_feature_dim = input_feature_dim
+        self.voxel_size = np.array([args.voxel_size_glp]*3)
 
         # Sparse Volumetric Backbone
         self.net = BEVEncoder(self.input_feature_dim)
+
         self.pooling = spnn.GlobalMaxPooling()
 
         loc_max = torch.tensor([240, 400, 80], device='cuda', dtype=torch.int32)
@@ -20,14 +29,7 @@ class SceneModule(nn.Module):
             nn.ReLU(True),
         )
 
-
-        v_dim = args.visual_dim
-        l_dim = args.languege_dim
-        h_dim = args.hidden_dim
-
         self.h_dim = h_dim
-        dropout_rate = 0.4
-
         self.vis_emb_fc = nn.Sequential(nn.Conv2d(v_dim, h_dim, 3),
                                         nn.BatchNorm2d(h_dim),
                                         nn.ReLU(),
@@ -35,7 +37,7 @@ class SceneModule(nn.Module):
                                         nn.Conv2d(h_dim, h_dim, 3),
                                         )
 
-        self.vis_emb_fc1 = nn.Sequential(nn.Linear(h_dim, h_dim),
+        self.vis_emb_fc1 = nn.Sequential(nn.Linear(128, h_dim),
                                         nn.LayerNorm(h_dim),
                                         nn.ReLU(),
                                         nn.Dropout(dropout_rate),
@@ -55,26 +57,15 @@ class SceneModule(nn.Module):
                                  nn.Linear(h_dim, 9),
                                  )
 
-
-        self.weight_initialization()
-
-
-    def weight_initialization(self):
-        for m in self.modules():
-            if isinstance(m, nn.BatchNorm1d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-
-
     def forward(self, data_dict):
-        feats = data_dict['pt']
+        feats = data_dict['lidar']
         point_min = data_dict['point_min']
         batch_size = point_min.shape[0]
         pred_obb_batch = data_dict['pred_obb_batch']
         obj_feats_flatten = data_dict['obj_feats']
         lang_feats = data_dict['lang_scene_feats']
 
-        # feature extractor
+        # Sparse Volumetric Backbone
         feats = self.net(feats)
         feats = self.to_bev(feats)  # BCHW
         feats = self.vis_emb_fc(feats)  # (B, D, H, W)
@@ -86,7 +77,6 @@ class SceneModule(nn.Module):
         atten = torch.bmm(feats, lang_feats) / math.sqrt(feats.shape[2])  # (B, n_vis, n_lang)
         atten = atten.squeeze(2)
         atten = torch.softmax(atten, dim=1)
-
         data_dict['vis_atten'] = atten.reshape(batch_size, h, w)
 
         # cls
@@ -95,6 +85,7 @@ class SceneModule(nn.Module):
 
         data_dict['seg_scores'] = seg_scores
 
+        # matching
         scene_feats_flatten = []
 
         for i in range(batch_size):
@@ -108,12 +99,11 @@ class SceneModule(nn.Module):
 
         scene_feats_flatten = torch.cat(scene_feats_flatten, dim=0)
 
-        # matching
+        # L2 Normalize
         obj_feats_flatten = self.vis_emb_fc1(obj_feats_flatten)
-        # obj_feats_flatten = nn.functional.normalize(obj_feats_flatten, p=2, dim=1)
         scores = nn.functional.cosine_similarity(obj_feats_flatten, scene_feats_flatten, dim=1)
+
         data_dict['scene_scores'] = scores
 
         return data_dict
-
 

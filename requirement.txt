@@ -3,6 +3,8 @@ pandas
 easydict
 plyfile
 trimesh
+pyyaml
+tqdm
 tensorboardX
 torch-scatter -f https://pytorch-geometric.com/whl/torch-1.6.0+cu101.html
 torch-sparse -f https://pytorch-geometric.com/whl/torch-1.6.0+cu101.html

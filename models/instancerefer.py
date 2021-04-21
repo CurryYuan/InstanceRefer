@@ -18,7 +18,7 @@ class InstanceRefer(nn.Module):
 
         # --------- LANGUAGE ENCODING ---------
         module = importlib.import_module(args.language_module)
-        self.lang = module.LangModule(args)
+        self.lang = module.LangModule(args.num_classes, True, args.use_bidir, 300, 128)
 
         # --------- INSTANCE ENCODING ---------
         if args.attribute_module:

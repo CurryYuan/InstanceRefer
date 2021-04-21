@@ -5,7 +5,7 @@ DATA:
   dataset: ScanRefer
   num_points: 40000
   num_scenes: -1
-  num_classes: 20
+  num_classes: 18
   use_augment: True
 
   # input
@@ -16,17 +16,13 @@ DATA:
 
 MODEL:
   model: instancerefer
+
+  # Filtering candidates
   use_gt_lang: True
-  visual_dim: 128
-  languege_dim: 256
-  hidden_dim: 256
 
   # Attribute Module
   attribute_module: attribute_module
-  normalize_inst: False
   voxel_size_ap: 0.02
-  use_semantic: False
-  instance_augment: False
 
   # Relation Module
   relation_module: relation_module
@@ -34,17 +30,10 @@ MODEL:
 
   # Global Localization Module
   scene_module: scene_module
-  use_seg: True
-  voxel_size_glp: 0.1
+  voxel_size_glp: 0.05
 
   # Language Module
   language_module: lang_module
-  embedding_size: 300
-  hidden_size: 128
-  word_output_dim: 256
-  num_layers: 2
-  word_dropout: 0.1
-  use_lang_cls: True
   use_bidir: True # bi-directional GRU
 
   # pretrain
@@ -52,20 +41,20 @@ MODEL:
   use_pretrained: False
 
 TRAIN:
-  batch_size: 128
-  num_workers: 16
-  epoch: 32
+  batch_size: 64
+  num_workers: 4
+  epoch: 25
 
   lr: 0.001
-  lr_decay_step: [10, 20]
+  lr_decay_step: [15, 20]
   lr_decay_rate: 0.1
-  bn_decay_step: 10
-  bn_decay_rate: 0.1
+  bn_decay_step:
+  bn_decay_rate:
   wd: 0.00001
 
   verbose: 20
   val_step: 2000
-  start_val: 5
+  start_val: 0
 
 
 

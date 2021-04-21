@@ -47,7 +47,7 @@ class ScannetReferenceDataset(Dataset):
         self.use_height = args.use_height
         self.use_normal = args.use_normal
         self.use_multiview = args.use_multiview
-        self.augment = args.use_augment
+        self.augment = args.use_augment if split == "train" else False
 
         # load data
         self._load_data()
@@ -221,17 +221,11 @@ class ScannetReferenceDataset(Dataset):
                 size = pc.max(0) - pc.min(0)
                 ins_obb = np.concatenate((center, size, np.array([0])))
                 ins_obbs.append(ins_obb)
+                x = random_sampling(x, 1024)
                 instance_points.append(x)
 
                 if ins_class == object_cat:
-                    onhot_semantic = one_hot(self.args.num_classes, ins_class)
-
                     pc = x[:, :3]
-
-                    if self.args.use_semantic:
-                        rep_cls = np.tile(onhot_semantic, [x.shape[0], 1])
-                        x = np.concatenate([x, rep_cls], -1)
-
                     coords, feats = sparse_quantize(
                         pc,
                         x,
@@ -267,7 +261,7 @@ class ScannetReferenceDataset(Dataset):
         pt = SparseTensor(feats, coords)
 
         data_dict = {}
-        data_dict['pt'] = pt
+        data_dict['lidar'] = pt
         data_dict['pts_batch'] = pts_batch
         data_dict['pred_obb_batch'] = pred_obbs
         data_dict['scene_points'] = [scene_points]
@@ -425,7 +419,7 @@ class ScannetReferenceDataset(Dataset):
         return lang, lang_tokens, lang_cls
 
     def _load_data(self):
-        print("loading data...")
+        print("Loading data...")
 
         # add scannet data
         self.scene_list = sorted(list(set([data["scene_id"] for data in self.scanrefer])))

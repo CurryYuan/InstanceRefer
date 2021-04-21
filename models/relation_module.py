@@ -5,17 +5,11 @@ import numpy as np
 from models.basic_blocks import DynamicEdgeConv
 
 class RelationModule(nn.Module):
-    def __init__(self, input_feature_dim, args):
+    def __init__(self, input_feature_dim, args, v_dim=128, h_dim=128, l_dim=256, dropout_rate=0.15):
         super().__init__()
 
         self.args = args
         self.input_feature_dim = input_feature_dim
-
-        v_dim = args.visual_dim
-        l_dim = args.languege_dim
-        h_dim = args.hidden_dim
-        dropout_rate = 0.4
-
         self.vis_emb_fc = nn.Sequential(nn.Linear(v_dim, h_dim),
                                         nn.LayerNorm(h_dim),
                                         nn.ReLU(),
@@ -30,9 +24,10 @@ class RelationModule(nn.Module):
                                          nn.Linear(h_dim, h_dim),
                                          )
 
-        self.gcn = DynamicEdgeConv(input_feature_dim + args.num_classes, v_dim, args=self.args)
+        self.gcn = DynamicEdgeConv(input_feature_dim+args.num_classes, 128, k=args.k, num_classes=args.num_classes)
         self.one_hot_array = np.eye(args.num_classes)
         self.weight_initialization()
+
 
     def weight_initialization(self):
         for m in self.modules():
@@ -83,8 +78,6 @@ class RelationModule(nn.Module):
         return feats, lang_feats_flatten, batch_index, filtered_index, pred_obbs
 
     def forward(self, data_dict):
-
-        # lang encoding
         lang_feats = data_dict['lang_rel_feats']  # (B, l_dim)
         lang_feats = self.lang_emb_fc(lang_feats).unsqueeze(1)  # (B, 1, h_dim)
 
@@ -97,19 +90,21 @@ class RelationModule(nn.Module):
         feats, lang_feats_flatten, batch_index, filtered_index, pred_obbs = \
             self.filter_candidates(data_dict, lang_feats, lang_cls_pred)
 
-        # prepare data feeding
         lang_feats_flatten = torch.cat(lang_feats_flatten, dim=0)
         feats = torch.Tensor(feats).cuda()
+
         batch_index = torch.LongTensor(batch_index).cuda()
         filtered_index = torch.LongTensor(filtered_index).cuda()
         support_xyz = torch.Tensor(pred_obbs)[:, :3].cuda()
 
-        # GCN
         feats = self.gcn(support_xyz, batch_index, filtered_index, feats)
         feats = self.vis_emb_fc(feats)
-        # feats = nn.functional.normalize(feats, p=2, dim=1)
+
         scores = nn.functional.cosine_similarity(feats, lang_feats_flatten, dim=1)
 
         data_dict['relation_scores'] = scores
 
         return data_dict
+
+
+

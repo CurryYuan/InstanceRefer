@@ -17,6 +17,7 @@ If you find our work useful in your research, please consider citing:
 }
 ```
 ## News
+* 2021-04-22 We release evaluation codes and pre-trained model!
 * 2021-03-31 We release InstanceRefer v1 :rocket:!
 * 2021-03-18 We achieve 1st place in [ScanRefer](http://kaldir.vc.in.tum.de/scanrefer_benchmark/) leaderboard :fire:. 
 ![](figures/benchmark.png)
@@ -25,7 +26,7 @@ If you find our work useful in your research, please consider citing:
 
 
 ## Setup
-The code is tested on Ubuntu 16.04 LTS & 18.04 LTS with PyTorch 1.6 CUDA 10.1 installed. 
+The code is tested on Ubuntu 16.04 LTS & 18.04 LTS with PyTorch 1.6 CUDA 10.1 installed and PyTorch 1.8 CUDA 10.2 installed. 
 
 ```shell
 conda install pytorch==1.6.0 torchvision==0.7.0 cudatoolkit=10.1 -c pytorch
@@ -35,11 +36,10 @@ Install the necessary packages listed out in `requirements.txt`:
 ```shell
 pip install -r requirements.txt
 ```
-After all packages are properly installed, please run the following commands to compile the [torchsaprse](https://github.com/mit-han-lab/torchsparse):
+After all packages are properly installed, please run the following commands to compile the [**torchsaprse 1.2**](https://github.com/mit-han-lab/torchsparse):
 ```shell
-conda install libboost
-conda install -c daleydeng gcc-5
 pip install --upgrade git+https://github.com/mit-han-lab/torchsparse.git
+sudo apt-get install libsparsehash-dev
 ```
 __Before moving on to the next step, please don't forget to set the project root path to the `CONF.PATH.BASE` in `lib/config.py`.__
 
@@ -69,7 +69,6 @@ InstanceRefer
 │   │  │  ├── scene0000_00_aligned_bbox.npy
 │   │  │  ├── scene0000_00_aligned_vert.npy
 │   │  ├──├──  ... ...
-
 ```
 
 ### Training
@@ -78,12 +77,22 @@ Train the InstanceRefer model. You can change hyper-parameters in `config/Instan
 python scripts/train.py --log_dir instancerefer
 ```
 
+### Evaluation
+Download the pre-trained model from [Baidu Netdisk [password: lrpb]](https://pan.baidu.com/s/17v6QR2PD3R29ojfRWus1MQ) and specific the `use_checkpoint` in your `config/InstanceRefer.yaml` file. Finally, you can run with:
+```shell
+python scripts/eval.py
+```
+
+### Performance
+| Input | ACC@0.25 | ACC@0.5 |
+|--|--|--|
+| xyz+rgb |  37.6  | 30.7 | 
 
 ## TODO
 
 - [ ] Updating to the best version.
 - [ ] Release codes for prediction on benchmark.
-- [ ] Release pre-trained model.
+- [x] Release pre-trained model.
 - [ ] Merge PointGroup in an end-to-end manner.
 
 
