@@ -78,15 +78,15 @@ python scripts/train.py --log_dir instancerefer
 ```
 
 ### Evaluation
-Download the pre-trained model from [Baidu Netdisk [password: lrpb]](https://pan.baidu.com/s/17v6QR2PD3R29ojfRWus1MQ) and specific the `use_checkpoint` in your `config/InstanceRefer.yaml` file. Finally, you can run with:
+You need specific the `use_checkpoint` with the folder that contains `model.pth` in `config/InstanceRefer.yaml` and run with:
 ```shell
 python scripts/eval.py
 ```
 
-### Performance
-| Input | ACC@0.25 | ACC@0.5 |
-|--|--|--|
-| xyz+rgb |  37.6  | 30.7 | 
+### Pre-trained Models
+| Input | ACC@0.25 | ACC@0.5 | Checkpoints
+|--|--|--|--|
+| xyz+rgb |  37.6  | 30.7 |  [Baidu Netdisk [password: lrpb]](https://pan.baidu.com/s/17v6QR2PD3R29ojfRWus1MQ) 
 
 ## TODO
 
