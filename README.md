@@ -26,7 +26,7 @@ If you find our work useful in your research, please consider citing:
 
 
 ## Setup
-The code is tested on Ubuntu 16.04 LTS & 18.04 LTS with PyTorch 1.6 CUDA 10.1 installed and PyTorch 1.8 CUDA 10.2 installed. 
+The code is tested on Ubuntu 16.04 LTS & 18.04 LTS with **PyTorch 1.6 CUDA 10.1** and **PyTorch 1.8 CUDA 10.2** installed. 
 
 ```shell
 conda install pytorch==1.6.0 torchvision==0.7.0 cudatoolkit=10.1 -c pytorch
