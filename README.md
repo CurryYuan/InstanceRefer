@@ -17,7 +17,7 @@ If you find our work useful in your research, please consider citing:
 }
 ```
 ## News
-* 2021-07-23 InstanceRefer is accepted at ICCV 2021 2021 :fire:!
+* 2021-07-23 InstanceRefer is accepted at **ICCV 2021** :fire:!
 * 2021-04-22 We release evaluation codes and pre-trained model!
 * 2021-03-31 We release InstanceRefer v1 :rocket:!
 * 2021-03-18 We achieve 1st place in [ScanRefer](http://kaldir.vc.in.tum.de/scanrefer_benchmark/) leaderboard :fire:. 
