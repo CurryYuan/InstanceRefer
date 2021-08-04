@@ -9,10 +9,10 @@ Zhihao Yuan, [Xu Yan](https://github.com/yanx27), Yinghong Liao, Ruimao Zhang, [
 
 If you find our work useful in your research, please consider citing:
 ```
-@InProceedings{yuan2021instancerefer,
-  title={InstanceRefer: Cooperative Holistic Understanding for Visual Grounding on Point Clouds through Instance Multi-level Contextual Referring},
-  author={Zhihao Yuan, Xu Yan, Yinghong Liao, Ruimao Zhang, Zhen Li, Shuguang Cui},
-  journal={arXiv preprint},
+@article{yuan2021instancerefer,
+  title={Instancerefer: Cooperative holistic understanding for visual grounding on point clouds through instance multi-level contextual referring},
+  author={Yuan, Zhihao and Yan, Xu and Liao, Yinghong and Zhang, Ruimao and Li, Zhen and Cui, Shuguang},
+  journal={arXiv preprint arXiv:2103.01128},
   year={2021}
 }
 ```
