@@ -12,7 +12,7 @@ If you find our work useful in your research, please consider citing:
 @article{yuan2021instancerefer,
   title={Instancerefer: Cooperative holistic understanding for visual grounding on point clouds through instance multi-level contextual referring},
   author={Yuan, Zhihao and Yan, Xu and Liao, Yinghong and Zhang, Ruimao and Li, Zhen and Cui, Shuguang},
-  journal={arXiv preprint arXiv:2103.01128},
+  journal={ICCV},
   year={2021}
 }
 ```
