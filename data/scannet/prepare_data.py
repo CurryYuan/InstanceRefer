@@ -165,7 +165,8 @@ def export(mesh_file, agg_file, seg_file, meta_file, label_map_file, output_file
 
 def export_one_scan(scan_name, output_filename_prefix):
     mesh_file = os.path.join(SCANNET_DIR, scan_name, scan_name + '_vh_clean_2.ply')
-    agg_file = os.path.join(SCANNET_DIR, scan_name, scan_name + '_vh_clean.aggregation.json')
+    # agg_file = os.path.join(SCANNET_DIR, scan_name, scan_name + '_vh_clean.aggregation.json')
+    agg_file = os.path.join(SCANNET_DIR, scan_name, scan_name + '.aggregation.json') # NOTE must use the aggregation file for the low-res mesh
     seg_file = os.path.join(SCANNET_DIR, scan_name, scan_name + '_vh_clean_2.0.010000.segs.json')
 
     meta_file = os.path.join(SCANNET_DIR, scan_name,
