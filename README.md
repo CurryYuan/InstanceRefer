@@ -1,7 +1,7 @@
 # InstanceRefer
 ### InstanceRefer: Cooperative Holistic Understanding for Visual Grounding on Point Clouds through Instance Multi-level Contextual Referring
 
-This repository is for the **ICCV 2021** paper and 1st method on ScanRefer benchmark [[arxiv paper]](https://arxiv.org/pdf/2103.01128.pdf).
+This repository is for the **ICCV 2021** paper and 1st method on ScanRefer benchmark [[paper]](https://openaccess.thecvf.com/content/ICCV2021/papers/Yuan_InstanceRefer_Cooperative_Holistic_Understanding_for_Visual_Grounding_on_Point_Clouds_ICCV_2021_paper.pdf).
 
 Zhihao Yuan, [Xu Yan](https://github.com/yanx27), Yinghong Liao, Ruimao Zhang, [Zhen Li*](https://mypage.cuhk.edu.cn/academics/lizhen/), Shuguang Cui
 
@@ -12,7 +12,8 @@ If you find our work useful in your research, please consider citing:
 @InProceedings{yuan2021instancerefer,
   title={Instancerefer: Cooperative holistic understanding for visual grounding on point clouds through instance multi-level contextual referring},
   author={Yuan, Zhihao and Yan, Xu and Liao, Yinghong and Zhang, Ruimao and Li, Zhen and Cui, Shuguang},
-  journal={ICCV},
+  booktitle={Proceedings of the IEEE/CVF International Conference on Computer Vision},
+  pages={1791-1800},
   year={2021}
 }
 ```
