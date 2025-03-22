@@ -38,7 +38,7 @@ Install the necessary packages listed out in `requirements.txt`:
 ```shell
 pip install -r requirements.txt
 ```
-After all packages are properly installed, please run the following commands to compile the [**torchsaprse 1.2**](https://github.com/mit-han-lab/torchsparse):
+After all packages are properly installed, please run the following commands to compile the [**torchsparse 1.2**](https://github.com/mit-han-lab/torchsparse):
 ```shell
 pip install --upgrade git+https://github.com/mit-han-lab/torchsparse.git
 sudo apt-get install libsparsehash-dev
@@ -50,7 +50,7 @@ __Before moving on to the next step, please don't forget to set the project root
 1. Download the ScanRefer dataset and unzip it under `data/`. 
 2. Downloadand the preprocessed [GLoVE embeddings (~990MB)](http://kaldir.vc.in.tum.de/glove.p) and put them under `data/`.
 3. Download the ScanNetV2 dataset and put (or link) `scans/` under (or to) `data/scannet/scans/` (Please follow the [ScanNet Instructions](data/scannet/README.md) for downloading the ScanNet dataset). After this step, there should be folders containing the ScanNet scene data under the `data/scannet/scans/` with names like `scene0000_00`
-4. Used official and pre-trained [PointGroup](https://github.com/Jia-Research-Lab/PointGroup) generate panoptic segmentation in `PointGroupInst/`. We provide pre-processed data in [Baidu Netdisk [password: 0nxc]](https://pan.baidu.com/s/1j9XCxPhaPECk4OczhjDxAA).
+4. Used official and pre-trained [PointGroup](https://github.com/Jia-Research-Lab/PointGroup) generate panoptic segmentation in `PointGroupInst/`. We provide pre-processed data in [Baidu Netdisk [password: 0nxc]](https://pan.baidu.com/s/1j9XCxPhaPECk4OczhjDxAA) or [OneDrive](https://cuhko365-my.sharepoint.com/:f:/g/personal/221019046_link_cuhk_edu_cn/Em6wRHnxgnZGnobQj87n5uUBWUwTgjBBoy6uw9iDH7l9kQ?e=Rx6sAk).
 5. Pre-processed instance labels, and new data should be generated in  `data/scannet/pointgroup_data/`
 ```shell
 cd data/scannet/
